@@ -59,7 +59,7 @@ It provides a clean and intuitive interface for swimmers to log sessions, and fo
 
 ---
 
-##Roadmap
+## Roadmap
 
 Phase 1 – Scaffold + authentication shell ✅
 
@@ -73,7 +73,7 @@ Phase 5 – Coach dashboard and performance summaries
 
 ---
 
-##Contributing
+## Contributing
 
 This is currently a personal project, but feedback and suggestions are welcome.
 Please open an issue to report bugs or propose features.
