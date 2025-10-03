@@ -1,85 +1,65 @@
-SwimSmart Tracker — Frontend
+# SwimSmart Tracker — Frontend
 
-SwimSmart Tracker is a training log and performance insight tool for swimmers and coaches.
-This repository contains the frontend application, built with React, Vite, TailwindCSS, and Recharts.
+SwimSmart Tracker is a training log and performance insight tool for swimmers and coaches.  
+This repository contains the **frontend application**, built with **React, Vite, TailwindCSS, and Recharts**.  
 
 It provides a clean and intuitive interface for swimmers to log sessions, and for coaches to review training progress and workload.
 
-Project Vision
+---
 
-For swimmers: a simple way to log sets, reps, times, and Rate of Perceived Exertion (RPE).
+## Project Vision
 
-For coaches: access to swimmer logs, trends, and performance insights.
+- **For swimmers**: a simple way to log sets, reps, times, and Rate of Perceived Exertion (RPE).  
+- **For coaches**: access to swimmer logs, trends, and performance insights.  
+- **For both**: CSV export and dashboards that turn raw training data into meaningful insights.
 
-For both: CSV export and dashboards that turn raw training data into meaningful insights.
+---
 
-Features
+## Features
 
-Secure login with JWT authentication (via FastAPI backend).
+- Secure login with JWT authentication (via FastAPI backend).  
+- Role-based access:
+  - **Swimmers**: log sessions, track times, RPE, distances.  
+  - **Coaches**: view athlete logs, leaderboards, and trends.  
+- Protected routes and navigation depending on user role.  
+- Session history tables with filtering.  
+- Charts and graphs powered by **Recharts**.  
+- CSV export for external analysis.  
+- Responsive UI with **TailwindCSS** + **shadcn/ui** components.  
 
-Role-based access:
+---
 
-Swimmers: log sessions, track times, RPE, distances.
+## Tech Stack
 
-Coaches: view athlete logs, leaderboards, and trends.
+- **Frontend**: React, Vite, TailwindCSS, shadcn/ui, Recharts, Axios, React Router  
+- **Backend**: [SwimSmart API](https://github.com/yourusername/swimsmart-backend) (FastAPI + PostgreSQL)  
+- **Deployment**: Local dev via Vite, cloud deployment later  
 
-Protected routes and navigation depending on user role.
+---
 
-Session history tables with filtering.
+## Setup (Development)
 
-Charts and graphs powered by Recharts.
+  ```bash
+  # 1. Clone the repository
+  git clone https://github.com/yourusername/swimsmart-frontend.git
+  cd swimsmart-frontend
 
-CSV export for external analysis.
+  # 2. Install dependencies
+  npm install
 
-Responsive UI with TailwindCSS + shadcn/ui components.
+  # 3. Create an .env file in the project root and set your API base URL
+  # (create a new file called ".env" and add this line inside)
+  VITE_API_URL=http://localhost:8000
 
-Tech Stack
+  # 4. Start the development server
+  npm run dev
 
-Frontend: React, Vite, TailwindCSS, shadcn/ui, Recharts, Axios, React Router
+  # 5. Open http://localhost:5173 in your browser
+  ```
 
-Backend: SwimSmart API
- (FastAPI + PostgreSQL)
+---
 
-Deployment: Local dev via Vite, cloud deployment later
-
-Setup (Development)
-
-Clone the repository:
-
-git clone https://github.com/yourusername/swimsmart-frontend.git
-cd swimsmart-frontend
-
-
-Install dependencies:
-
-npm install
-
-
-Create an .env file in the project root and set your API base URL:
-
-VITE_API_URL=http://localhost:8000
-
-
-Start the development server:
-
-npm run dev
-
-
-Open http://localhost:5173
- in your browser.
-
-Project Structure
-src/
-  api/          # Axios client for backend communication
-  context/      # AuthContext for managing login state
-  hooks/        # Reusable custom hooks
-  router/       # ProtectedRoute and route definitions
-  components/   # Shared UI components (Navbar, buttons, etc.)
-  pages/        # Page-level components (Login, Dashboard, Coach, etc.)
-  App.jsx       # App entry with routing
-  main.jsx      # React entry point
-
-Roadmap
+##Roadmap
 
 Phase 1 – Scaffold + authentication shell ✅
 
@@ -91,6 +71,9 @@ Phase 4 – Charts and CSV export
 
 Phase 5 – Coach dashboard and performance summaries
 
-Contributing
+---
 
-This is currently a personal project, but feedback and suggestions are welcome. Please open an issue to report bugs or propose features.
+##Contributing
+
+This is currently a personal project, but feedback and suggestions are welcome.
+Please open an issue to report bugs or propose features.
