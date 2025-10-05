@@ -7,9 +7,10 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Coach from "./pages/Coach";
 import ExportPage from "./pages/Export";
-import SessionDetailPage from "./pages/SessionDetail";   // <-- NEW
+import SessionDetailPage from "./pages/SessionDetail";
 
 import ProtectedRoute from "./router/ProtectedRoute";
+import CoachSwimmerSessions from "./pages/CoachSwimmerSessions";
 
 export default function App() {
   return (
@@ -54,6 +55,15 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <SessionDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            <Route
+              path="/coach/swimmers/:id"
+              element={
+                <ProtectedRoute role="coach">
+                  <CoachSwimmerSessions />
                 </ProtectedRoute>
               }
             />

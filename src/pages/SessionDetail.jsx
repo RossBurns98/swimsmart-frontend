@@ -2,9 +2,20 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getSession, getSessionAnalytics } from "../api/sessions";
 import { format } from "date-fns";
-import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  CartesianGrid,
+} from "recharts";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+import RpeBar from "../components/charts/RpeBar";
+import StrokeDonut from "../components/charts/StrokeDonut";
+import { toStrokeDonutData, toRpeBuckets } from "../utils/analytics";
+import api from "../api/client";
 
 export default function SessionDetailPage() {
   const { id } = useParams();
@@ -27,26 +38,86 @@ export default function SessionDetailPage() {
     return () => { mounted = false; };
   }, [id]);
 
+  // Rep line: tolerant of multiple field names
   const repSeries = useMemo(() => {
-    // If your detail.sets includes rep times like { reps: [{ time_sec: 75 }, ...] }
     const pts = [];
     (detail?.sets || []).forEach((s, si) => {
-      (s.reps || []).forEach((r, ri) => {
-        const val = r.time_sec ?? r.rep_time_sec ?? null;
-        if (typeof val === "number") {
-          pts.push({ x: `S${si+1} R${ri+1}`, sec: val });
+      const times =
+        (Array.isArray(s.rep_times_sec) && s.rep_times_sec) ||
+        (Array.isArray(s.rep_times) && s.rep_times) ||
+        (Array.isArray(s.times_sec) && s.times_sec) ||
+        (Array.isArray(s.times) && s.times) ||
+        [];
+      const rpes =
+        (Array.isArray(s.rpe) && s.rpe) ||
+        (Array.isArray(s.rpe_array) && s.rpe_array) ||
+        [];
+      times.forEach((t, ri) => {
+        if (typeof t === "number") {
+          pts.push({
+            x: `S${si + 1} R${ri + 1}`,
+            sec: t,
+            rpe: typeof rpes[ri] === "number" ? rpes[ri] : null,
+          });
         }
       });
     });
     return pts;
   }, [detail]);
 
+  const rpeData = useMemo(() => toRpeBuckets(detail), [detail]);
+
+  // stroke mix (analytics or fallback from sets)
+  const strokeData = useMemo(() => {
+    const primary = toStrokeDonutData(analytics?.by_stroke);
+    if (primary && primary.length > 0) return primary;
+    const totals = {};
+    (detail?.sets || []).forEach((s) => {
+      const stroke = (s.stroke || "unknown").toLowerCase();
+      const distPerRep = typeof s.distance_m === "number" ? s.distance_m : 0;
+      const reps =
+        (typeof s.reps === "number" ? s.reps : null) ??
+        (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : null) ??
+        (Array.isArray(s.rep_times) ? s.rep_times.length : null) ??
+        0;
+      const total = distPerRep * (reps || 0);
+      if (total > 0) totals[stroke] = (totals[stroke] || 0) + total;
+    });
+    return Object.entries(totals).map(([stroke, distance_m]) => ({ stroke, distance_m }));
+  }, [analytics, detail]);
+
+  async function downloadCsv() {
+    try {
+      const res = await api.get(`/export/session/${id}.csv`, { responseType: "blob" });
+      const blob = new Blob([res.data], { type: "text/csv;charset=utf-8" });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const dateStr = detail?.date ? format(new Date(detail.date), "yyyy-MM-dd") : "session";
+      a.href = url;
+      a.download = `session-${id}-${dateStr}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error(e);
+      alert(e?.response?.data?.detail || "CSV download failed");
+    }
+  }
+
   if (loading) return <div className="p-6">Loading…</div>;
-  if (err) return <div className="p-6 text-red-600">{err}</div>;
+  if (err)     return <div className="p-6 text-red-600">{err}</div>;
   if (!detail) return <div className="p-6">Not found.</div>;
 
   const dateStr = detail.date ? format(new Date(detail.date), "EEE dd MMM yyyy") : "";
-  const sum = analytics?.summary;
+  const totalDistance =
+    analytics?.summary?.total_distance_m ?? detail?.totals?.total_distance_m ?? 0;
+  const avgPace = analytics?.summary?.avg_pace_formatted ?? "-";
+  const avgRpe =
+    typeof detail?.totals?.avg_rpe === "number"
+      ? detail.totals.avg_rpe.toFixed(2)
+      : detail?.totals?.avg_rpe ?? "-";
+  const bestSet = analytics?.best_set?.name || analytics?.best_set?.label || "-";
 
   return (
     <div className="space-y-6">
@@ -55,70 +126,64 @@ export default function SessionDetailPage() {
           <h1 className="text-2xl font-semibold">Session on {dateStr}</h1>
           <p className="text-sm text-zinc-500 mt-1">{detail.notes || "No notes"}</p>
         </div>
-        <a
+        <button
           className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-sm"
-          href={`${API_BASE}/export/session/${id}.csv`}
+          onClick={downloadCsv}
         >
           Download CSV
-        </a>
+        </button>
       </header>
 
       {/* Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-        <SummaryCard label="Total distance" value={`${sum?.total_distance_m ?? detail?.totals?.total_distance_m ?? 0} m`} />
-        <SummaryCard label="Avg pace" value={sum?.avg_pace_formatted ?? "-"} />
-        <SummaryCard label="Avg RPE" value={`${detail?.totals?.avg_rpe ?? "-"}`} />
-        <SummaryCard label="Best set" value={analytics?.best_set?.name || analytics?.best_set?.label || "-"} />
-      </div>
-
-      {/* Sets table */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-        <h2 className="font-medium mb-3">Sets</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left border-b border-zinc-200 dark:border-zinc-800">
-              <tr>
-                <th className="py-2 px-3">#</th>
-                <th className="py-2 px-3">Description</th>
-                <th className="py-2 px-3">Distance</th>
-                <th className="py-2 px-3">Reps</th>
-                <th className="py-2 px-3">Stroke</th>
-                <th className="py-2 px-3">RPE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(detail.sets || []).map((s, i) => (
-                <tr key={i} className="border-b border-zinc-100 dark:border-zinc-900">
-                  <td className="py-2 px-3">{i + 1}</td>
-                  <td className="py-2 px-3">{s.name || s.label || "-"}</td>
-                  <td className="py-2 px-3">{s.distance_m ?? "-"}</td>
-                  <td className="py-2 px-3">{s.reps?.length ?? s.reps ?? "-"}</td>
-                  <td className="py-2 px-3">{s.stroke || "-"}</td>
-                  <td className="py-2 px-3">{Array.isArray(s.rpe) ? avg(s.rpe).toFixed(1) : (s.rpe ?? "-")}</td>
-                </tr>
-              ))}
-              {(!detail.sets || detail.sets.length === 0) && (
-                <tr><td colSpan={6} className="py-6 text-center text-zinc-500">No sets.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <SummaryCard label="Total distance" value={`${totalDistance} m`} />
+        <SummaryCard label="Avg pace" value={avgPace} />
+        <SummaryCard label="Avg RPE" value={`${avgRpe}`} />
+        <SummaryCard label="Best set" value={bestSet} />
       </div>
 
       {/* Rep times chart */}
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
         <h2 className="font-medium mb-3">Rep Times (sec)</h2>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={repSeries}>
+        <div className="overflow-x-auto">
+          <div style={{ width: 800, height: 260 }}>
+            <LineChart width={800} height={260} data={repSeries}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="x" />
               <YAxis />
               <Tooltip />
               <Line type="monotone" dataKey="sec" dot={false} />
             </LineChart>
-          </ResponsiveContainer>
+          </div>
         </div>
+      </div>
+
+      {/* Analytics charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Ensure each chart has a measurable box */}
+        <div className="h-64 w-full min-w-[320px]">
+          <RpeBar data={rpeData} />
+        </div>
+        <div className="h-64 w-full min-w-[320px]">
+          <StrokeDonut data={strokeData} />
+        </div>
+      </div>
+
+      {/* TEMP: Chart debug (you can delete once you see charts) */}
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+        <h3 className="font-medium mb-2 text-sm">Chart debug</h3>
+        <pre className="text-xs whitespace-pre-wrap break-words">
+{JSON.stringify(
+  {
+    repSeries_len: (repSeries || []).length,
+    first3RepPts: (repSeries || []).slice(0, 3),
+    rpeData,
+    strokeData
+  },
+  null,
+  2
+)}
+        </pre>
       </div>
     </div>
   );
@@ -131,9 +196,4 @@ function SummaryCard({ label, value }) {
       <div className="text-lg font-medium mt-1">{value}</div>
     </div>
   );
-}
-
-function avg(arr) {
-  if (!arr?.length) return 0;
-  return arr.reduce((a, b) => a + b, 0) / arr.length;
 }
