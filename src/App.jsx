@@ -5,8 +5,9 @@ import TopNav from "./components/layout/TopNav";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
-import Coach from "./pages/Coach";         
-import ExportPage from "./pages/Export";    
+import Coach from "./pages/Coach";
+import ExportPage from "./pages/Export";
+import SessionDetailPage from "./pages/SessionDetail";   // <-- NEW
 
 import ProtectedRoute from "./router/ProtectedRoute";
 
@@ -47,7 +48,17 @@ export default function App() {
               }
             />
 
-            {/* Unknown paths -> home or login */}
+            {/* session detail page */}
+            <Route
+              path="/sessions/:id"
+              element={
+                <ProtectedRoute>
+                  <SessionDetailPage />
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Unknown paths -> home */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
