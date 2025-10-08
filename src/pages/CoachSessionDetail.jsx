@@ -1,14 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { getSession } from "../api/sessions";
+import { getSwimmerSession } from "../api/coach";
 import { format } from "date-fns";
 import RpePerRepLine from "../components/charts/RpePerRepLine";
 import SetRepPaceLine from "../components/charts/SetRepPaceLine";
 import StrokePie from "../components/charts/StrokePie";
 import { formatSeconds } from "../utils/time";
+import api from "../api/client";
 
-export default function SessionDetailPage() {
-  const { id } = useParams(); // route: /sessions/:id
+const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+export default function CoachSessionDetail() {
+  const { id, sid } = useParams(); // route: /coach/swimmers/:id/sessions/:sid
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -17,15 +20,13 @@ export default function SessionDetailPage() {
   useEffect(() => {
     let mounted = true;
     setLoading(true);
-    setErr("");
-    getSession(id)
+    getSwimmerSession(id, sid)
       .then((d) => { if (mounted) { setDetail(d); setSelectedSetIdx(0); } })
       .catch((e) => setErr(e?.response?.data?.detail || e.message))
       .finally(() => mounted && setLoading(false));
     return () => { mounted = false; };
-  }, [id]);
+  }, [id, sid]);
 
-  // RPE per rep across all sets
   const rpePerRep = useMemo(() => {
     const pts = [];
     (detail?.sets || []).forEach((s, si) => {
@@ -37,7 +38,7 @@ export default function SessionDetailPage() {
     return pts;
   }, [detail]);
 
-  // Stroke totals from sets (works even without analytics)
+  // derive stroke mix from sets
   const strokeData = useMemo(() => {
     const totals = {};
     (detail?.sets || []).forEach((s) => {
@@ -66,6 +67,28 @@ export default function SessionDetailPage() {
   const total_m = detail?.totals?.total_distance_m ?? 0;
   const avg_rpe = detail?.totals?.avg_rpe ?? "-";
 
+  async function downloadCsv() {
+    try {
+      const token = localStorage.getItem("token");
+      const url = `${API_BASE}/export/session/${sid}.csv`;
+      const resp = await api.get(url, {
+        responseType: "blob",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      const blob = new Blob([resp.data], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `session-${sid}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(a.href);
+    } catch (e) {
+      console.error(e);
+      alert(e?.response?.data?.detail || e.message || "Failed to download CSV");
+    }
+  }
+
   function avg(arr) {
     if (!arr?.length) return null;
     const nums = arr.filter((x) => typeof x === "number");
@@ -80,6 +103,12 @@ export default function SessionDetailPage() {
           <h1 className="text-2xl font-semibold">Session on {dateStr}</h1>
           <p className="text-sm text-zinc-500 mt-1">{detail.notes || "No notes"}</p>
         </div>
+        <button
+          className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-sm cursor-pointer"
+          onClick={downloadCsv}
+        >
+          Download CSV
+        </button>
       </header>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -87,7 +116,6 @@ export default function SessionDetailPage() {
         <SummaryCard label="Avg RPE" value={`${avg_rpe}`} />
       </div>
 
-      {/* Composition table (coach-style) */}
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
         <h2 className="font-medium mb-3">Session composition</h2>
         <div className="overflow-x-auto">
@@ -105,13 +133,11 @@ export default function SessionDetailPage() {
                 const repsCount = typeof s.reps === "number"
                   ? s.reps
                   : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
-
                 const prescription = `${repsCount} × ${s.distance_m}m ${s.stroke}${s.interval_sec ? ` @ ${formatSeconds(s.interval_sec)}` : ""}`;
 
                 const times = Array.isArray(s.rep_times_sec) ? s.rep_times_sec.filter((n) => typeof n === "number") : [];
                 const avgTime = avg(times);
                 const pace100Sec = avgTime && s.distance_m ? (avgTime / Number(s.distance_m)) * 100 : null;
-
                 const avgRpe = Array.isArray(s.rpe) && s.rpe.length
                   ? (s.rpe.reduce((a, b) => a + b, 0) / s.rpe.length).toFixed(1)
                   : s.rpe ?? "-";
@@ -136,7 +162,7 @@ export default function SessionDetailPage() {
         </div>
       </div>
 
-      {/* Per-set selector + rep-time line */}
+      {/* per-set selector + chart */}
       <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-medium">Per-set pace (sec per rep)</h2>
@@ -161,7 +187,6 @@ export default function SessionDetailPage() {
         <SetRepPaceLine setObj={selectedSet} />
       </div>
 
-      {/* RPE per rep + Stroke pie */}
       <RpePerRepLine data={rpePerRep} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

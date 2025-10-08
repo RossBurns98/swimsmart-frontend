@@ -5,7 +5,7 @@ import { loginRequest } from "../api/auth";
 import { decodeJwt } from "../utils/jwt";
 
 export default function Login() {
-  const [identifier, setIdentifier] = useState(""); // username OR email
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -19,23 +19,14 @@ export default function Login() {
     e.preventDefault();
     setErrorMsg("");
     setLoading(true);
-
     try {
       const res = await loginRequest(identifier, password);
       const token = res?.access_token;
       if (!token) throw new Error("No access_token returned from server.");
-
       let role = res?.user?.role || decodeJwt(token)?.role || "swimmer";
       const username = res?.user?.username || null;
-
-      if (!role) {
-        const payload = decodeJwt(token);
-        role = payload?.role || "swimmer";
-      }
-
-      // Save token + role (+ username, if present)
+      if (!role) role = decodeJwt(token)?.role || "swimmer";
       login(token, role, username);
-      
       const from = location.state?.from?.pathname;
       navigate(from || (role === "coach" ? "/coach" : "/dashboard"), { replace: true });
     } catch (err) {
@@ -99,6 +90,10 @@ export default function Login() {
           >
             {loading ? "Signing in…" : "Sign in"}
           </button>
+
+          <div className="text-xs text-zinc-500 mt-3">
+            No account? <a className="underline" href="/signup">Create one</a>
+          </div>
         </form>
       </div>
     </div>

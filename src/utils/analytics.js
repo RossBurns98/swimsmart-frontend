@@ -25,25 +25,23 @@ export function toStrokeDonutData(by_stroke) {
   }));
 }
 
-// Prefer session totals.avg_rpe, but fall back to averaging all rep-level RPEs across sets
+// RPE bucketing using FLOOR (6.99 => 6; 7.0+ => "7-10")
 export function toRpeBuckets(detail) {
   const buckets = { "1-3": 0, "4-6": 0, "7-10": 0 };
 
   let avg = detail?.totals?.avg_rpe;
   if (typeof avg !== "number") {
-    // compute from sets if possible
     const all = [];
     (detail?.sets || []).forEach((s) => {
       if (Array.isArray(s.rpe)) all.push(...s.rpe.filter((n) => typeof n === "number"));
     });
-    if (all.length) {
-      avg = all.reduce((a, b) => a + b, 0) / all.length;
-    }
+    if (all.length) avg = all.reduce((a, b) => a + b, 0) / all.length;
   }
 
   if (typeof avg === "number") {
-    if (avg <= 3) buckets["1-3"] = 1;
-    else if (avg <= 6) buckets["4-6"] = 1;
+    const v = Math.floor(avg);
+    if (v <= 3) buckets["1-3"] = 1;
+    else if (v <= 6) buckets["4-6"] = 1;
     else buckets["7-10"] = 1;
   }
   return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
