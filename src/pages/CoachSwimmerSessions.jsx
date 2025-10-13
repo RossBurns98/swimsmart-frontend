@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, useLocation, useNavigate } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { getSwimmerSessions, getSwimmers } from "../api/coach";
-import { getSession, getSessionAnalytics } from "../api/sessions";
 import SessionsTable from "../components/tables/SessionsTable";
 import { format } from "date-fns";
 import PaceLine from "../components/charts/PaceLine";
@@ -11,7 +10,6 @@ import StrokePie from "../components/charts/StrokePie";
 export default function CoachSwimmerSessions() {
   const { id } = useParams();
   const location = useLocation();
-  const navigate = useNavigate();
   const fromState = location.state?.swimmer || null;
 
   const [swimmer, setSwimmer] = useState(fromState);
@@ -19,10 +17,6 @@ export default function CoachSwimmerSessions() {
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
   const [q, setQ] = useState("");
-
-  // stroke mix
-  const [mix, setMix] = useState([]);
-  const [mixLoading, setMixLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -82,56 +76,23 @@ export default function CoachSwimmerSessions() {
     return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
   }, [filtered]);
 
-  // build stroke mix % (with fixed-height container in the chart component)
-  useEffect(() => {
-    let cancelled = false;
-    async function buildMix() {
-      setMixLoading(true);
-      try {
-        const ids = (filtered || []).map(r => r.id).slice(0, 50);
-        const totals = {};
-        const analytics = await Promise.all(ids.map(i => getSessionAnalytics(i, 100).catch(() => null)));
-
-        let hadAnalytics = false;
-        analytics.forEach(a => {
-          const by = a?.by_stroke;
-          if (!by) return;
-          hadAnalytics = true;
-          if (Array.isArray(by)) {
-            by.forEach(item => {
-              const stroke = item.stroke || item.name || "unknown";
-              const m = item.total_distance_m ?? item.distance_m_total ?? item.total_m ?? item.meters ?? item.distance ?? 0;
-              totals[stroke] = (totals[stroke] || 0) + (Number(m) || 0);
-            });
-          } else {
-            Object.entries(by).forEach(([stroke, info]) => {
-              const m = info?.total_distance_m ?? info?.distance_m_total ?? info?.total_m ?? info?.meters ?? info?.distance ?? 0;
-              totals[stroke] = (totals[stroke] || 0) + (Number(m) || 0);
-            });
-          }
-        });
-
-        if (!hadAnalytics) {
-          const details = await Promise.all(ids.map(i => getSession(i).catch(() => null)));
-          details.forEach(d => {
-            (d?.sets || []).forEach(s => {
-              const repsCount = typeof s.reps === "number" ? s.reps : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
-              const m = Number(s.distance_m) * Number(repsCount || 0) || 0;
-              const stroke = s.stroke || "unknown";
-              totals[stroke] = (totals[stroke] || 0) + m;
-            });
-          });
-        }
-
-        const grand = Object.values(totals).reduce((a,b)=>a+b,0) || 0;
-        const pct = grand ? Object.entries(totals).map(([stroke, m]) => ({ stroke, percent: (m/grand)*100 })) : [];
-        if (!cancelled) setMix(pct.sort((a,b)=>b.percent-a.percent));
-      } finally {
-        if (!cancelled) setMixLoading(false);
-      }
-    }
-    if (filtered.length) buildMix(); else setMix([]);
-    return () => { cancelled = true; };
+  // Stroke mix % across this swimmer’s visible sessions
+  const strokeMixPct = useMemo(() => {
+    const totals = {};
+    (filtered || []).forEach((r) => {
+      (r.sets || []).forEach((s) => {
+        const repsCount = typeof s.reps === "number"
+          ? s.reps
+          : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
+        const m = Number(s.distance_m) * Number(repsCount || 0) || 0;
+        const stroke = s.stroke || "unknown";
+        totals[stroke] = (totals[stroke] || 0) + m;
+      });
+    });
+    const grand = Object.values(totals).reduce((a, b) => a + b, 0) || 0;
+    return grand > 0
+      ? Object.entries(totals).map(([stroke, m]) => ({ stroke, percent: (m / grand) * 100 }))
+      : [];
   }, [filtered]);
 
   const displayName = swimmer?.username || swimmer?.email || `ID ${id}`;
@@ -139,11 +100,12 @@ export default function CoachSwimmerSessions() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="text-2xl font-semibold">Swimmer Sessions</h1>
+        <h1 className="text-2xl font-semibold">Swimmer Overview</h1>
         <p className="text-sm text-zinc-500 mt-1">Viewing swimmer: {displayName}</p>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      {/* Filters */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <input
           className="rounded-xl border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm"
           placeholder="Search notes…"
@@ -152,30 +114,41 @@ export default function CoachSwimmerSessions() {
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 2xl:grid-cols-3 gap-4">
-        <div className="2xl:col-span-2 grid grid-cols-1 2xl:grid-cols-2 gap-4">
-          <PaceLine data={paceData} title="Pace vs Date (swimmer)" />
-          <RpeBar data={rpeBuckets} title="RPE Distribution (swimmer)" />
-        </div>
-        <div>
-          <StrokePie data={mix} valueKey="percent" title="Stroke Mix (%)" />
-          {mixLoading && <div className="mt-2 text-xs text-zinc-500">Calculating…</div>}
-        </div>
-      </div>
+      {/* Two equal columns: LEFT sessions+pie, RIGHT pace+RPE */}
+      <div className="gap-6 items-start" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+        {/* LEFT column */}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 relative z-10">
+            <h2 className="font-medium mb-3">Sessions</h2>
+            {loading ? (
+              <div className="text-sm text-zinc-500">Loading swimmer…</div>
+            ) : err ? (
+              <div className="text-sm text-red-600">{err}</div>
+            ) : (
+              <SessionsTable rows={filtered} pageSize={12} />
+            )}
+          </div>
 
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-        <h2 className="font-medium mb-3">Sessions</h2>
-        {loading ? (
-          <div className="text-sm text-zinc-500">Loading swimmer…</div>
-        ) : err ? (
-          <div className="text-sm text-red-600">{err}</div>
-        ) : (
-          <SessionsTable
-            rows={filtered}
-            onRowClick={(r) => navigate(`/coach/swimmers/${id}/sessions/${r.id}`)}
-          />
-        )}
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <StrokePie
+              data={strokeMixPct}
+              valueKey="percent"
+              title="Stroke Mix (all sessions)"
+              height={300}
+              percentFormat
+            />
+          </div>
+        </div>
+
+        {/* RIGHT column */}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <PaceLine title="Pace vs Date" data={paceData} height={300} xLabel="Date" yLabel="sec / 100m" />
+          </div>
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <RpeBar title="RPE Distribution" data={rpeBuckets} height={300} xLabel="Bucket" yLabel="Sessions" />
+          </div>
+        </div>
       </div>
     </div>
   );

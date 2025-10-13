@@ -12,10 +12,7 @@
   --fg: #f7f7f9;
 }
 
-/* Use plain CSS for the variables; keep Tailwind utilities in components */
-html, body, #root {
-  height: 100%;
-}
+html, body, #root { height: 100%; }
 body {
   margin: 0;
   background: var(--bg);

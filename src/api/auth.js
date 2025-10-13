@@ -1,16 +1,21 @@
+// src/api/auth.js
 import api from "./client";
 
+// LOGIN (username OR email in "identifier")
 export async function loginRequest(identifier, password) {
   const { data } = await api.post("/auth/login", { identifier, password });
   return data; // { access_token, token_type, user: { id, email, role, username } }
 }
 
-export async function signupRequest({ email, password, role = "swimmer", username }) {
-  const { data } = await api.post("/auth/signup", {
+// SIGNUP (requires invite_code)
+export async function signupRequest({ email, username, password, role, invite_code }) {
+  const payload = {
     email,
+    username: username || null,
     password,
     role,
-    username: username || null,
-  });
-  return data; // e.g. { id, email, role, username? }
+    invite_code,
+  };
+  const { data } = await api.post("/auth/signup", payload);
+  return data; // { message: "ok" }
 }

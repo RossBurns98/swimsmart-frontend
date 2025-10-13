@@ -1,21 +1,23 @@
-import { LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid } from "recharts";
 
-/** data: [{ x: "S1 R1", rpe: 7 }, ...] */
-export default function RpePerRepLine({ data = [], title = "RPE per Rep" }) {
-  const width = Math.max(600, data.length * 28);
+/**
+ * RPE per rep line (club red)
+ * data: [{ x: "S1 R1", rpe: 6 }, ...]
+ */
+export default function RpePerRepLine({ data = [] }) {
   return (
-    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-      <h2 className="font-medium mb-3">{title}</h2>
-      <div className="overflow-x-auto">
-        <div style={{ width, height: 260 }}>
-          <LineChart width={width} height={260} data={data} key={`rpe-rep-line-${data?.length || 0}`}>
+    <div className="w-full">
+      {/* fixed height so ResponsiveContainer can calculate */}
+      <div style={{ width: "100%", height: 260 }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} key={`rpe-line-${data?.length || 0}`}>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis dataKey="x" />
             <YAxis domain={[0, 10]} />
             <Tooltip />
-            <Line type="monotone" dataKey="rpe" dot />
+            <Line type="monotone" dataKey="rpe" dot={false} stroke="#dc2626" strokeWidth={2} />
           </LineChart>
-        </div>
+        </ResponsiveContainer>
       </div>
     </div>
   );

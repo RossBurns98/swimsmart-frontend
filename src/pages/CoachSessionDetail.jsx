@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import { getSwimmerSession } from "../api/coach";
 import { format } from "date-fns";
 import RpePerRepLine from "../components/charts/RpePerRepLine";
@@ -11,7 +11,7 @@ import api from "../api/client";
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export default function CoachSessionDetail() {
-  const { id, sid } = useParams(); // route: /coach/swimmers/:id/sessions/:sid
+  const { id, sid } = useParams(); // /coach/swimmers/:id/sessions/:sid
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -38,7 +38,6 @@ export default function CoachSessionDetail() {
     return pts;
   }, [detail]);
 
-  // derive stroke mix from sets
   const strokeData = useMemo(() => {
     const totals = {};
     (detail?.sets || []).forEach((s) => {
@@ -96,12 +95,24 @@ export default function CoachSessionDetail() {
     return nums.reduce((a, b) => a + b, 0) / nums.length;
   }
 
+  // fixed card height so the 2×2 grid lines up perfectly
+  const CARD_HEIGHT = 360;
+
   return (
     <div className="space-y-6">
-      <header className="flex items-baseline justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold">Session on {dateStr}</h1>
-          <p className="text-sm text-zinc-500 mt-1">{detail.notes || "No notes"}</p>
+      {/* Header */}
+      <header className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Link
+            to={`/coach/swimmers/${id}`}
+            className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 cursor-pointer"
+          >
+            ← Back
+          </Link>
+          <div>
+            <h1 className="text-2xl font-semibold">Session on {dateStr}</h1>
+            <p className="text-sm text-zinc-500 mt-1">{detail.notes || "No notes"}</p>
+          </div>
         </div>
         <button
           className="px-4 py-2 rounded-xl border border-zinc-300 dark:border-zinc-700 text-sm cursor-pointer"
@@ -111,86 +122,101 @@ export default function CoachSessionDetail() {
         </button>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {/* Inline metrics */}
+      <div className="grid grid-cols-2 gap-3">
         <SummaryCard label="Total distance" value={`${total_m} m`} />
         <SummaryCard label="Avg RPE" value={`${avg_rpe}`} />
       </div>
 
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-        <h2 className="font-medium mb-3">Session composition</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="text-left border-b border-zinc-200 dark:border-zinc-800">
-              <tr>
-                <th className="py-2 px-3 w-10">#</th>
-                <th className="py-2 px-3">Set</th>
-                <th className="py-2 px-3">Avg pace (/100m)</th>
-                <th className="py-2 px-3">Avg RPE</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(detail.sets || []).map((s, i) => {
-                const repsCount = typeof s.reps === "number"
-                  ? s.reps
-                  : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
-                const prescription = `${repsCount} × ${s.distance_m}m ${s.stroke}${s.interval_sec ? ` @ ${formatSeconds(s.interval_sec)}` : ""}`;
+      {/* 2×2 equal grid of cards */}
+      <div
+        className="gap-6"
+        style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}
+      >
+        {/* Card 1: Session composition (fixed height with inner scroll) */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <h2 className="font-medium mb-3">Session composition</h2>
+          <div className="overflow-x-auto" style={{ maxHeight: CARD_HEIGHT - 70 }}>
+            <table className="w-full text-sm">
+              <thead className="text-left border-b border-zinc-200 dark:border-zinc-800 sticky top-0 bg-white dark:bg-zinc-950">
+                <tr>
+                  <th className="py-2 px-3 w-10">#</th>
+                  <th className="py-2 px-3">Set</th>
+                  <th className="py-2 px-3">Avg pace /100m</th>
+                  <th className="py-2 px-3">Avg RPE</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(detail.sets || []).map((s, i) => {
+                  const repsCount = typeof s.reps === "number"
+                    ? s.reps
+                    : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
+                  const prescription = `${repsCount} × ${s.distance_m}m ${s.stroke}${s.interval_sec ? ` @ ${formatSeconds(s.interval_sec)}` : ""}`;
 
-                const times = Array.isArray(s.rep_times_sec) ? s.rep_times_sec.filter((n) => typeof n === "number") : [];
-                const avgTime = avg(times);
-                const pace100Sec = avgTime && s.distance_m ? (avgTime / Number(s.distance_m)) * 100 : null;
-                const avgRpe = Array.isArray(s.rpe) && s.rpe.length
-                  ? (s.rpe.reduce((a, b) => a + b, 0) / s.rpe.length).toFixed(1)
-                  : s.rpe ?? "-";
+                  const times = Array.isArray(s.rep_times_sec) ? s.rep_times_sec.filter((n) => typeof n === "number") : [];
+                  const a = avg(times);
+                  const pace100Sec = a && s.distance_m ? (a / Number(s.distance_m)) * 100 : null;
+                  const avgRpe = Array.isArray(s.rpe) && s.rpe.length
+                    ? (s.rpe.reduce((x, y) => x + y, 0) / s.rpe.length).toFixed(1)
+                    : s.rpe ?? "-";
 
-                return (
-                  <tr key={i} className="border-b border-zinc-100 dark:border-zinc-900 align-top">
-                    <td className="py-2 px-3">{i + 1}</td>
-                    <td className="py-2 px-3">
-                      <div className="font-medium">{prescription}</div>
-                      {s.name && <div className="text-xs text-zinc-500">({s.name})</div>}
-                    </td>
-                    <td className="py-2 px-3">{pace100Sec ? `${formatSeconds(pace100Sec)} /100m` : "-"}</td>
-                    <td className="py-2 px-3">{avgRpe}</td>
-                  </tr>
-                );
-              })}
-              {(!detail.sets || detail.sets.length === 0) && (
-                <tr><td colSpan={4} className="py-6 text-center text-zinc-500">No sets.</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* per-set selector + chart */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="font-medium">Per-set pace (sec per rep)</h2>
-          <div className="flex items-center gap-2">
-            <label className="text-sm">Choose set:</label>
-            <select
-              className="rounded-xl border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-transparent cursor-pointer"
-              value={selectedSetIdx}
-              onChange={(e) => setSelectedSetIdx(Number(e.target.value))}
-            >
-              {(detail?.sets || []).map((s, i) => {
-                const repsCount = typeof s.reps === "number"
-                  ? s.reps
-                  : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
-                return (
-                  <option key={i} value={i}>{repsCount}×{s.distance_m}m {s.stroke}</option>
-                );
-              })}
-            </select>
+                  return (
+                    <tr key={i} className="border-b border-zinc-100 dark:border-zinc-900 align-top">
+                      <td className="py-2 px-3">{i + 1}</td>
+                      <td className="py-2 px-3">
+                        <div className="font-medium">{prescription}</div>
+                        {s.name && <div className="text-xs text-zinc-500">({s.name})</div>}
+                      </td>
+                      <td className="py-2 px-3">
+                        {pace100Sec ? `${Math.floor(pace100Sec / 60)}:${String(Math.round(pace100Sec % 60)).padStart(2, "0")} /100m` : "-"}
+                      </td>
+                      <td className="py-2 px-3">{avgRpe}</td>
+                    </tr>
+                  );
+                })}
+                {(!detail.sets || detail.sets.length === 0) && (
+                  <tr><td colSpan={4} className="py-6 text-center text-zinc-500">No sets.</td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
-        <SetRepPaceLine setObj={selectedSet} />
-      </div>
 
-      <RpePerRepLine data={rpePerRep} />
+        {/* Card 2: Per-set pace line (fixed height) */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-medium">Set pace (sec per rep)</h2>
+            <div className="flex items-center gap-2">
+              <label className="text-sm">Choose set:</label>
+              <select
+                className="rounded-xl border border-zinc-300 dark:border-zinc-700 px-2 py-1 text-sm bg-transparent cursor-pointer"
+                value={selectedSetIdx}
+                onChange={(e) => setSelectedSetIdx(Number(e.target.value))}
+              >
+                {(detail?.sets || []).map((s, i) => {
+                  const repsCount = typeof s.reps === "number"
+                    ? s.reps
+                    : (Array.isArray(s.rep_times_sec) ? s.rep_times_sec.length : 0);
+                  return (
+                    <option key={i} value={i}>{repsCount}×{s.distance_m}m {s.stroke}</option>
+                  );
+                })}
+              </select>
+            </div>
+          </div>
+          <SetRepPaceLine setObj={selectedSet} height={CARD_HEIGHT - 90} xLabel="Rep" yLabel="Seconds" />
+        </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <StrokePie data={strokeData} title="Stroke Mix (session)" valueKey="distance_m" />
+        {/* Card 3: Stroke pie (fixed height) */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <StrokePie data={strokeData} title="Stroke Mix (session)" valueKey="distance_m" height={CARD_HEIGHT - 40} />
+        </div>
+
+        {/* Card 4: RPE per rep (fixed height + title) */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <h2 className="font-medium mb-3">RPE per rep</h2>
+          <RpePerRepLine data={rpePerRep} height={CARD_HEIGHT - 60} xLabel="Rep" yLabel="RPE" />
+        </div>
       </div>
     </div>
   );

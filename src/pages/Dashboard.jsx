@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { listMySessions, getSessionAnalytics, getSession } from "../api/sessions";
 import SessionsTable from "../components/tables/SessionsTable";
 import PaceLine from "../components/charts/PaceLine";
@@ -8,8 +8,6 @@ import StrokePie from "../components/charts/StrokePie";
 import { format } from "date-fns";
 
 export default function Dashboard() {
-  const navigate = useNavigate();
-
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -25,9 +23,7 @@ export default function Dashboard() {
     let mounted = true;
     setLoading(true);
     listMySessions({ limit: 200, pace_per_m: 100 })
-      .then((data) => {
-        if (mounted) setRows(Array.isArray(data) ? data : []);
-      })
+      .then((data) => mounted && setRows(Array.isArray(data) ? data : []))
       .catch((e) => setErr(e?.response?.data?.detail || e.message))
       .finally(() => mounted && setLoading(false));
     return () => { mounted = false; };
@@ -71,6 +67,7 @@ export default function Dashboard() {
     return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
   }, [filtered]);
 
+  // Build stroke mix % across visible sessions (same as before)
   useEffect(() => {
     let cancelled = false;
 
@@ -161,7 +158,7 @@ export default function Dashboard() {
         </div>
         <Link
           to="/new-session"
-          className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 cursor-pointer inline-flex items-center"
+          className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer inline-flex items-center"
         >
           + Add Session
         </Link>
@@ -189,39 +186,46 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Charts */}
-      <div className="grid grid-cols-1 2xl:grid-cols-3 gap-4">
-        <div className="2xl:col-span-2 grid grid-cols-1 2xl:grid-cols-2 gap-4">
-          <PaceLine data={paceData} />
-          <RpeBar data={rpeBuckets} />
+      {/* Two equal columns */}
+      <div className="gap-6 items-start" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+        {/* LEFT column: Sessions (pageSize=12) + Stroke Pie below */}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 relative z-10">
+            <h2 className="font-medium mb-3">Sessions</h2>
+            {loading ? (
+              <div className="text-sm text-zinc-500">Loading…</div>
+            ) : err ? (
+              <div className="text-sm text-red-600">{err}</div>
+            ) : (
+              <SessionsTable
+                rows={filtered}
+                onRowClick={(r) => (window.location.href = `/sessions/${r.id}`)}
+                pageSize={12}
+              />
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <StrokePie
+              data={strokeMixPct}
+              valueKey="percent"
+              title="Stroke Mix (all sessions)"
+              height={300}
+              percentFormat
+            />
+            {mixLoading && <div className="mt-2 text-xs text-zinc-500">Calculating…</div>}
+          </div>
         </div>
 
-        <div>
-          <StrokePie
-            data={strokeMixPct}
-            valueKey="percent"
-            title="Stroke Mix (all sessions, % distance)"
-          />
-          {mixLoading && <div className="mt-2 text-xs text-zinc-500">Calculating…</div>}
+        {/* RIGHT column: Pace + RPE */}
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <PaceLine title="Pace vs Date" data={paceData} height={300} xLabel="Date" yLabel="sec / 100m" />
+          </div>
+          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
+            <RpeBar title="RPE Distribution" data={rpeBuckets} height={300} xLabel="Bucket" yLabel="Sessions" />
+          </div>
         </div>
-      </div>
-
-      {/* Table */}
-      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 relative z-10">
-        <h2 className="font-medium mb-3">Sessions</h2>
-        {loading ? (
-          <div className="text-sm text-zinc-500">Loading…</div>
-        ) : err ? (
-          <div className="text-sm text-red-600">{err}</div>
-        ) : (
-          <SessionsTable
-            rows={filtered}
-            onRowClick={(r) => {
-              // navigation is handled here so table rows aren’t anchors
-              window.location.href = `/sessions/${r.id}`;
-            }}
-          />
-        )}
       </div>
     </div>
   );
