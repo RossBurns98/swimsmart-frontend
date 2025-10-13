@@ -1,5 +1,6 @@
+// src/pages/CoachSessionDetail.jsx
 import { useEffect, useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { getSwimmerSession } from "../api/coach";
 import { format } from "date-fns";
 import RpePerRepLine from "../components/charts/RpePerRepLine";
@@ -12,6 +13,7 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export default function CoachSessionDetail() {
   const { id, sid } = useParams(); // /coach/swimmers/:id/sessions/:sid
+  const navigate = useNavigate();
   const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
@@ -103,8 +105,10 @@ export default function CoachSessionDetail() {
       {/* Header */}
       <header className="flex items-center justify-between">
         <div className="flex items-center gap-3">
+          {/* FIX: explicit link to swimmer’s sessions list; replace to avoid the loop */}
           <Link
             to={`/coach/swimmers/${id}`}
+            replace
             className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 cursor-pointer"
           >
             ← Back
@@ -133,7 +137,7 @@ export default function CoachSessionDetail() {
         className="gap-6"
         style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}
       >
-        {/* Card 1: Session composition (fixed height with inner scroll) */}
+        {/* Card 1: Session composition */}
         <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
           <h2 className="font-medium mb-3">Session composition</h2>
           <div className="overflow-x-auto" style={{ maxHeight: CARD_HEIGHT - 70 }}>
@@ -182,7 +186,7 @@ export default function CoachSessionDetail() {
           </div>
         </div>
 
-        {/* Card 2: Per-set pace line (fixed height) */}
+        {/* Card 2: Per-set pace line */}
         <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
           <div className="flex items-center justify-between mb-3">
             <h2 className="font-medium">Set pace (sec per rep)</h2>
@@ -207,12 +211,12 @@ export default function CoachSessionDetail() {
           <SetRepPaceLine setObj={selectedSet} height={CARD_HEIGHT - 90} xLabel="Rep" yLabel="Seconds" />
         </div>
 
-        {/* Card 3: Stroke pie (fixed height) */}
+        {/* Card 3: Stroke pie */}
         <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
           <StrokePie data={strokeData} title="Stroke Mix (session)" valueKey="distance_m" height={CARD_HEIGHT - 40} />
         </div>
 
-        {/* Card 4: RPE per rep (fixed height + title) */}
+        {/* Card 4: RPE per rep */}
         <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
           <h2 className="font-medium mb-3">RPE per rep</h2>
           <RpePerRepLine data={rpePerRep} height={CARD_HEIGHT - 60} xLabel="Rep" yLabel="RPE" />

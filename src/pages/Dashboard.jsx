@@ -5,6 +5,7 @@ import SessionsTable from "../components/tables/SessionsTable";
 import PaceLine from "../components/charts/PaceLine";
 import RpeBar from "../components/charts/RpeBar";
 import StrokePie from "../components/charts/StrokePie";
+import Button from "../components/ui/Button";
 import { format } from "date-fns";
 
 export default function Dashboard() {
@@ -67,7 +68,7 @@ export default function Dashboard() {
     return Object.entries(buckets).map(([bucket, count]) => ({ bucket, count }));
   }, [filtered]);
 
-  // Build stroke mix % across visible sessions (same as before)
+  // Build stroke mix % across visible sessions (fallback to session detail if analytics missing)
   useEffect(() => {
     let cancelled = false;
 
@@ -149,6 +150,8 @@ export default function Dashboard() {
     return () => { cancelled = true; };
   }, [filtered]);
 
+  const CARD_HEIGHT = 360;
+
   return (
     <div className="space-y-6">
       <header className="flex items-center justify-between relative z-20">
@@ -156,16 +159,11 @@ export default function Dashboard() {
           <h1 className="text-2xl font-semibold">Swimmer Dashboard</h1>
           <p className="text-sm text-zinc-500 mt-1">Your recent sessions</p>
         </div>
-        <Link
-          to="/new-session"
-          className="px-3 py-1.5 rounded-xl border border-zinc-300 dark:border-zinc-700 bg-transparent hover:bg-zinc-50 dark:hover:bg-zinc-900 cursor-pointer inline-flex items-center"
-        >
-          + Add Session
-        </Link>
+        <Button as={Link} to="/new-session">+ Add Session</Button>
       </header>
 
       {/* Filters */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl">
         <input
           className="rounded-xl border border-zinc-300 dark:border-zinc-700 px-3 py-2 text-sm"
           placeholder="Search notes…"
@@ -186,12 +184,12 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Two equal columns */}
-      <div className="gap-6 items-start" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
-        {/* LEFT column: Sessions (pageSize=12) + Stroke Pie below */}
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 relative z-10">
-            <h2 className="font-medium mb-3">Sessions</h2>
+      {/* 2×2 equal grid of cards */}
+      <div className="gap-6" style={{ display: "grid", gridTemplateColumns: "1fr 1fr" }}>
+        {/* Left / top: Sessions (fixed card height with inner scroll) */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <h2 className="font-medium mb-3">Sessions</h2>
+          <div className="overflow-x-auto" style={{ maxHeight: CARD_HEIGHT - 70 }}>
             {loading ? (
               <div className="text-sm text-zinc-500">Loading…</div>
             ) : err ? (
@@ -200,31 +198,31 @@ export default function Dashboard() {
               <SessionsTable
                 rows={filtered}
                 onRowClick={(r) => (window.location.href = `/sessions/${r.id}`)}
-                pageSize={12}
               />
             )}
           </div>
-
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-            <StrokePie
-              data={strokeMixPct}
-              valueKey="percent"
-              title="Stroke Mix (all sessions)"
-              height={300}
-              percentFormat
-            />
-            {mixLoading && <div className="mt-2 text-xs text-zinc-500">Calculating…</div>}
-          </div>
         </div>
 
-        {/* RIGHT column: Pace + RPE */}
-        <div className="space-y-4">
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-            <PaceLine title="Pace vs Date" data={paceData} height={300} xLabel="Date" yLabel="sec / 100m" />
-          </div>
-          <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4">
-            <RpeBar title="RPE Distribution" data={rpeBuckets} height={300} xLabel="Bucket" yLabel="Sessions" />
-          </div>
+        {/* Right / top: Pace line */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <PaceLine title="Pace vs Date" data={paceData} height={CARD_HEIGHT - 40} xLabel="Date" yLabel="sec / 100m" />
+        </div>
+
+        {/* Left / bottom: Stroke pie */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <StrokePie
+            data={strokeMixPct}
+            valueKey="percent"
+            title="Stroke Mix (all sessions)"
+            height={CARD_HEIGHT - 40}
+            percentFormat
+          />
+          {mixLoading && <div className="mt-2 text-xs text-zinc-500">Calculating…</div>}
+        </div>
+
+        {/* Right / bottom: RPE bar */}
+        <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4" style={{ minHeight: CARD_HEIGHT }}>
+          <RpeBar title="RPE Distribution" data={rpeBuckets} height={CARD_HEIGHT - 40} xLabel="Bucket" yLabel="Sessions" />
         </div>
       </div>
     </div>
