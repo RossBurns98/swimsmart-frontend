@@ -9,7 +9,7 @@ import StrokePie from "../components/charts/StrokePie";
 import { formatSeconds } from "../utils/time";
 import api from "../api/client";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export default function CoachSessionDetail() {
   const { id, sid } = useParams(); // /coach/swimmers/:id/sessions/:sid

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext";
 import { getSwimmers } from "../api/coach";
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "/api";
 
 export default function ExportPage() {
   const { role } = useAuth();
